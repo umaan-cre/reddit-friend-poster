@@ -1,0 +1,245 @@
+{
+  "name": "Private Reddit Manual Posting Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reddit-submit",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Receive Submission",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "reddit-submit"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\n\nconst action = String(body.action ?? '').toLowerCase();\nif (!['post', 'comment'].includes(action)) {\n  throw new Error('action must be post or comment');\n}\n\nif (action === 'post') {\n  if (!body.subreddit) throw new Error('subreddit is required');\n  if (!body.title) throw new Error('title is required');\n  if (!body.text) throw new Error('text is required');\n\n  return [{\n    json: {\n      action,\n      subreddit: String(body.subreddit).replace(/^r\\//i, ''),\n      title: String(body.title),\n      text: String(body.text)\n    }\n  }];\n}\n\nif (!body.thing_id) throw new Error('thing_id is required for comments');\nif (!body.text) throw new Error('text is required for comments');\n\nreturn [{\n  json: {\n    action,\n    thing_id: String(body.thing_id),\n    text: String(body.text)\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "post-check",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "post",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "3",
+      "name": "Is Post?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/submit",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api",
+        "sendBody": true,
+        "contentType": "application/x-www-form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "api_type",
+              "value": "json"
+            },
+            {
+              "name": "kind",
+              "value": "self"
+            },
+            {
+              "name": "sr",
+              "value": "={{ $json.subreddit }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4",
+      "name": "Submit Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        180
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "REPLACE_WITH_N8N_CREDENTIAL_ID",
+          "name": "Reddit OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oauth.reddit.com/api/comment",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api",
+        "sendBody": true,
+        "contentType": "application/x-www-form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "api_type",
+              "value": "json"
+            },
+            {
+              "name": "thing_id",
+              "value": "={{ $json.thing_id }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5",
+      "name": "Submit Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        420
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "REPLACE_WITH_N8N_CREDENTIAL_ID",
+          "name": "Reddit OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, result: $json } }}",
+        "options": {}
+      },
+      "id": "6",
+      "name": "Return Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        940,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receive Submission": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Is Post?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Post?": {
+      "main": [
+        [
+          {
+            "node": "Submit Post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Submit Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Post": {
+      "main": [
+        [
+          {
+            "node": "Return Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Comment": {
+      "main": [
+        [
+          {
+            "node": "Return Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "private-reddit-tool-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
